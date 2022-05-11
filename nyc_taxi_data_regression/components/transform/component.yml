@@ -1,0 +1,17 @@
+type: component
+
+# <component>
+inputs:
+  clean_data: 
+    type: Dataset
+outputs:
+  transformed_data:
+    type: Dataset
+code: ./src
+environment:
+  packages_to_install: file:./src/requirements.txt
+command: >-
+  python transform.py 
+  --clean_data ${{inputs.clean_data}} 
+  --transformed_data ${{outputs.transformed_data}} 
+# </component>

@@ -1,0 +1,64 @@
+type: pipeline
+
+# <inputs_and_outputs>
+inputs:
+  raw_green_data:
+    type: Dataset
+  raw_yellow_data:
+    type: Dataset
+
+outputs: 
+  trained_model:
+    type: Model
+  predictions:
+    type: Dataset
+  score_report:
+    type: Artifact
+# </inputs_and_outputs>
+
+# <components>
+settings:
+  # default_datastore: azureml:workspaceblobstore
+  # default_compute: azureml:cpu-cluster
+  continue_on_step_failure: false
+
+components:
+  prep:
+    component: file:./prep.yml
+    inputs:
+      raw_green_data: raw_green_data
+      raw_yellow_data: raw_yellow_data
+    outputs:
+      merged_data: merged_data
+
+  transform:
+    component: file:./transform.yml
+    inputs:
+      clean_data: merged_data
+    outputs:
+      transformed_data: model_input_table
+
+  train:
+    component: https://github.com/deepyaman/exidra/tree/main/components/python/train-linear-regression
+    inputs:
+      training_data: model_input_table
+    outputs:
+      model_output: trained_model
+      test_data: test_data
+
+  predict:
+    component: file:./predict.yml
+    inputs:
+      model_input: trained_model
+      test_data: test_data
+    outputs:
+      predictions: predictions
+
+  score:
+    component: file:./score.yml
+    inputs:
+      predictions: predictions
+      model: trained_model
+    outputs:
+      score_report: score_report
+# </components>

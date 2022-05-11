@@ -1,0 +1,23 @@
+type: component
+
+# <component>
+inputs:
+  raw_green_data: 
+    type: Dataset
+  raw_yellow_data:
+    type: Dataset
+outputs:
+  merged_data:
+    type: Dataset
+code: ./src
+environment:
+  packages_to_install:
+    - 'scikit-learn==0.24.1'
+    - 'numpy>=1.16.0'
+    - 'pandas~=1.1.0'
+command: >-
+  python prep.py 
+  --raw_green_data ${{inputs.raw_green_data}} 
+  --raw_yellow_data ${{inputs.raw_yellow_data}} 
+  --merged_data ${{outputs.merged_data}}
+# </component>
