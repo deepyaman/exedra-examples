@@ -376,6 +376,52 @@ def predict(
   output_data = output_data.to_csv(predictions.path)
 
 
+@component(
+    # https://docs.microsoft.com/en-us/azure/machine-learning/resource-curated-environments#scikit-learn
+    packages_to_install=['scikit-learn==0.24.1', 'numpy>=1.16.0', 'pandas~=1.1.0'],
+    output_component_file=str(Path(__file__).parent / 'score.yaml')
+)
+def score(
+    predictions: Input[Dataset],
+    model: Input[Model],
+    score_report: Output[Artifact]
+):
+  import pickle
+  from pathlib import Path
+
+  import pandas as pd
+  from sklearn.metrics import mean_squared_error, r2_score
+
+  print("reading file: %s ..." % predictions.path)
+  test_data = pd.read_csv(predictions.path)
+
+  # Load the model from input port
+  model = pickle.load(open(model.path, "rb"))
+
+  # Print the results of scoring the predictions against actual values in the test data
+  # The coefficients
+  print("Coefficients: \n", model.coef_)
+
+  actuals = test_data["actual_cost"]
+  predictions = test_data["predicted_cost"]
+
+  # The mean squared error
+  print("Mean squared error: %.2f" % mean_squared_error(actuals, predictions))
+  # The coefficient of determination: 1 is perfect prediction
+  print("Coefficient of determination: %.2f" % r2_score(actuals, predictions))
+  print("Model: ", model)
+
+  # Print score report to a text file
+  Path(score_report.path).write_text(
+      "Scored with the following model:\n{}".format(model)
+  )
+  with open(score_report.path, "a") as f:
+      f.write("\n Coefficients: \n %s \n" % str(model.coef_))
+      f.write("Mean squared error: %.2f \n" % mean_squared_error(actuals, predictions))
+      f.write("Coefficient of determination: %.2f \n" % r2_score(actuals, predictions))
+
+
+
 # TODO(deepyaman): Leverage `importer` (not supported with v1 compiler).
 # https://github.com/kubeflow/pipelines/blob/master/samples/v2/pipeline_with_importer.py
 web_downloader_op = kfp.components.load_component_from_url(
@@ -399,6 +445,10 @@ def nyc_taxi_data_regression_pipeline(raw_green_data_url: str, raw_yellow_data_u
   predict_task = predict(
     model_input=train_task.outputs['model_output'],
     test_data=train_task.outputs['test_data'],
+  )
+  score_task = score(
+    predictions=predict_task.outputs['predictions'],
+    model=train_task.outputs['model_output'],
   )
 
 
