@@ -313,6 +313,69 @@ def train(
   test_data = testX.to_csv(test_data.path)
 
 
+@component(
+    # https://docs.microsoft.com/en-us/azure/machine-learning/resource-curated-environments#scikit-learn
+    packages_to_install=['scikit-learn==0.24.1', 'numpy>=1.16.0', 'pandas~=1.1.0'],
+    output_component_file=str(Path(__file__).parent / 'predict.yaml')
+)
+def predict(
+    model_input: Input[Model],
+    test_data: Input[Dataset],
+    predictions: Output[Dataset]
+):
+  import pickle
+
+  import pandas as pd
+
+  print("reading file: %s ..." % test_data.path)
+  test_data = pd.read_csv(test_data.path)
+  testy = test_data["cost"]
+  # testX = test_data.drop(['cost'], axis=1)
+  testX = test_data[
+      [
+          "distance",
+          "dropoff_latitude",
+          "dropoff_longitude",
+          "passengers",
+          "pickup_latitude",
+          "pickup_longitude",
+          "store_forward",
+          "vendor",
+          "pickup_weekday",
+          "pickup_month",
+          "pickup_monthday",
+          "pickup_hour",
+          "pickup_minute",
+          "pickup_second",
+          "dropoff_weekday",
+          "dropoff_month",
+          "dropoff_monthday",
+          "dropoff_hour",
+          "dropoff_minute",
+          "dropoff_second",
+      ]
+  ]
+  print(testX.shape)
+  print(testX.columns)
+
+  # Load the model from input port
+  model = pickle.load(open(model_input.path, "rb"))
+  # model = (Path(args.model_input) / 'model.txt').read_text()
+  # print('Model: ', model)
+
+  # Make predictions on testX data and record them in a column named predicted_cost
+  testX["predicted_cost"] = model.predict(testX)
+  print(testX.shape)
+
+  # Compare predictions to actuals (testy)
+  output_data = pd.DataFrame(testX)
+  output_data["actual_cost"] = testy
+
+
+  # Save the output data with feature columns, predicted cost, and actual cost in csv file
+  output_data = output_data.to_csv(predictions.path)
+
+
 # TODO(deepyaman): Leverage `importer` (not supported with v1 compiler).
 # https://github.com/kubeflow/pipelines/blob/master/samples/v2/pipeline_with_importer.py
 web_downloader_op = kfp.components.load_component_from_url(
@@ -333,6 +396,10 @@ def nyc_taxi_data_regression_pipeline(raw_green_data_url: str, raw_yellow_data_u
   )
   transform_task = transform(clean_data=prep_task.outputs['merged_data'])
   train_task = train(training_data=transform_task.outputs['transformed_data'])
+  predict_task = predict(
+    model_input=train_task.outputs['model_output'],
+    test_data=train_task.outputs['test_data'],
+  )
 
 
 if __name__ == '__main__':
