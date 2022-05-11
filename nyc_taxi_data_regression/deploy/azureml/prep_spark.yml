@@ -1,0 +1,21 @@
+# <component>
+$schema: https://azuremlschemas.azureedge.net/latest/commandComponent.schema.json
+name: prep_taxi_data
+display_name: PrepTaxiDataWithSpark
+version: 1
+type: command
+inputs:
+  raw_data: 
+    type: uri_folder 
+outputs:
+  prep_data:
+    type: uri_folder
+code: ./prep_spark_src
+environment: 
+    image: mcr.microsoft.com/mmlspark/release:1.0.0-rc3
+    conda_file: conda.yml
+command: >-
+  python prep.py 
+  --raw_data ${{inputs.raw_data}} 
+  --prep_data ${{outputs.prep_data}}
+# </component>
