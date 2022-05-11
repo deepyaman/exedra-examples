@@ -8,6 +8,7 @@ from kfp.v2.dsl import (
     Output,
     Artifact,
     Dataset,
+    Model,
 )
 
 
@@ -243,6 +244,75 @@ def transform(clean_data: Input[Dataset], transformed_data: Output[Dataset]):
   transformed_data = final_df.to_csv(transformed_data.path)
 
 
+@component(
+    # https://docs.microsoft.com/en-us/azure/machine-learning/resource-curated-environments#scikit-learn
+    packages_to_install=['scikit-learn==0.24.1', 'numpy>=1.16.0', 'pandas~=1.1.0'],
+    output_component_file=str(Path(__file__).parent / 'train.yaml')
+)
+def train(
+    training_data: Input[Dataset],
+    test_data: Output[Dataset],
+    model_output: Output[Model]
+):
+  import pickle
+
+  import pandas as pd
+  from sklearn.linear_model import LinearRegression
+  from sklearn.model_selection import train_test_split
+
+  print("reading file: %s ..." % training_data.path)
+  train_data = pd.read_csv(training_data.path)
+  print(train_data.columns)
+
+  # Split the data into input(X) and output(y)
+  y = train_data["cost"]
+  # X = train_data.drop(['cost'], axis=1)
+  X = train_data[
+      [
+          "distance",
+          "dropoff_latitude",
+          "dropoff_longitude",
+          "passengers",
+          "pickup_latitude",
+          "pickup_longitude",
+          "store_forward",
+          "vendor",
+          "pickup_weekday",
+          "pickup_month",
+          "pickup_monthday",
+          "pickup_hour",
+          "pickup_minute",
+          "pickup_second",
+          "dropoff_weekday",
+          "dropoff_month",
+          "dropoff_monthday",
+          "dropoff_hour",
+          "dropoff_minute",
+          "dropoff_second",
+      ]
+  ]
+
+  # Split the data into train and test sets
+  trainX, testX, trainy, testy = train_test_split(X, y, test_size=0.3, random_state=42)
+  print(trainX.shape)
+  print(trainX.columns)
+
+  # Train a Linear Regression Model with the train set
+  model = LinearRegression().fit(trainX, trainy)
+  print(model.score(trainX, trainy))
+
+
+  # Output the model and test data
+  pickle.dump(model, open(model_output.path, "wb"))
+  # Model artifact has a `.metadata` dictionary
+  # to store arbitrary metadata for the output artifact.
+  model_output.metadata['r2'] = model.score(trainX, trainy)
+  # test_data = pd.DataFrame(testX, columns = )
+  testX["cost"] = testy
+  print(testX.shape)
+  test_data = testX.to_csv(test_data.path)
+
+
 # TODO(deepyaman): Leverage `importer` (not supported with v1 compiler).
 # https://github.com/kubeflow/pipelines/blob/master/samples/v2/pipeline_with_importer.py
 web_downloader_op = kfp.components.load_component_from_url(
@@ -262,6 +332,7 @@ def nyc_taxi_data_regression_pipeline(raw_green_data_url: str, raw_yellow_data_u
     raw_yellow_data=raw_yellow_data_web_downloader_task.outputs['data'],
   )
   transform_task = transform(clean_data=prep_task.outputs['merged_data'])
+  train_task = train(training_data=transform_task.outputs['transformed_data'])
 
 
 if __name__ == '__main__':
