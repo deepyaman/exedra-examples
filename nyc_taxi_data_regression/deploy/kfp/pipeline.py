@@ -20,8 +20,8 @@ from kfp.v2.dsl import (
 def prep(
     raw_green_data: Input[Dataset],
     raw_yellow_data: Input[Dataset],
-    green_prep_data: Output[Dataset],
-    yellow_prep_data: Output[Dataset],
+    prep_green_data: Output[Dataset],
+    prep_yellow_data: Output[Dataset],
     merged_data: Output[Dataset]
 ):
   import pandas as pd
@@ -120,9 +120,9 @@ def prep(
   combined_df = green_data_clean.append(yellow_data_clean, ignore_index=True)
   combined_df.reset_index(inplace=True, drop=True)
 
-  output_green = green_data_clean.to_csv(green_prep_data.path)
+  output_green = green_data_clean.to_csv(prep_green_data.path)
   output_yellow = yellow_data_clean.to_csv(
-      yellow_prep_data.path
+      prep_yellow_data.path
   )
   merged_data = combined_df.to_csv(merged_data.path)
 
